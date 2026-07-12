@@ -3084,7 +3084,8 @@ def build_latest_pitch_fit_snapshot(model_df: pd.DataFrame) -> pd.DataFrame:
         .tail(1)
         .copy()
     )
-    return latest[cols].drop_duplicates(["batter", "pitcher"])
+    available_cols = [c for c in cols if c in latest.columns]
+    return latest[available_cols].drop_duplicates(["batter", "pitcher"])
 
 
 def build_latest_matchup_snapshot(model_df: pd.DataFrame) -> pd.DataFrame:
@@ -3334,9 +3335,6 @@ def build_forward_board_input(model_df: pd.DataFrame, pa_df: pd.DataFrame, targe
     board["interaction_power_vs_elevation"] = board["batter_power_score_prior"] * (
         board["pitcher_recent_fb_rate_allowed_10"].fillna(0) - board["pitcher_recent_gb_rate_allowed_10"].fillna(0)
     )
-    board["interaction_matchup_pitchfit"] = board["matchup_history_score_prior"] * board["pitch_fit_score_prior"]
-    board["interaction_matchup_power"] = board["matchup_history_score_prior"] * board["batter_power_score_prior"]
-
     for c in FEATURE_COLUMNS:
         if c not in board.columns:
             board[c] = 0
