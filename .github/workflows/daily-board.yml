@@ -1,6 +1,8 @@
 name: Refresh daily home run board
 
 on:
+  push:
+    branches: ["main"]
   schedule:
     # 16:15 UTC is 9:15 AM Pacific during daylight time.
     - cron: "15 16 * * *"
