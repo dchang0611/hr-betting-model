@@ -3104,7 +3104,8 @@ def build_latest_matchup_snapshot(model_df: pd.DataFrame) -> pd.DataFrame:
         .tail(1)
         .copy()
     )
-    return latest[cols].drop_duplicates(["batter", "pitcher"])
+    available_cols = [c for c in cols if c in latest.columns]
+    return latest[available_cols].drop_duplicates(["batter", "pitcher"])
 
 
 def build_forward_board_input(model_df: pd.DataFrame, pa_df: pd.DataFrame, target_date: str) -> pd.DataFrame:
