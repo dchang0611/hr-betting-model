@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#081510"><title>Daily Home Run Board</title><link rel="stylesheet" href="styles.css"></head>
+<body><main>
+  <header><div><p class="eyebrow">MLB MODEL</p><h1>Daily Home Run Board</h1></div><a class="download" href="data/latest-board.csv">Download CSV</a></header>
+  <section class="summary"><div><span>Slate</span><strong id="date">Loading…</strong></div><div><span>Players ranked</span><strong id="count">—</strong></div><div><span>Last refreshed</span><strong id="updated">—</strong></div></section>
+  <nav class="tabs" aria-label="Board views"><button class="tab active" data-view="players">Player board</button><button class="tab" data-view="games">Games & matchups</button></nav>
+  <section class="board">
+    <div class="board-title"><div><p class="section-kicker" id="view-kicker">TOP 50</p><h2 id="view-title">Player breakdowns</h2></div><input id="search" type="search" placeholder="Find a player, team, or pitcher" aria-label="Find a player, team, or pitcher"></div>
+    <div id="players-view"><div class="table-wrap"><table><thead><tr><th>Rank</th><th>Player</th><th>Matchup</th><th>Pitcher</th><th>HR probability</th><th>Weather</th><th></th></tr></thead><tbody id="rows"></tbody></table></div></div>
+    <div id="games-view" class="games" hidden></div>
+    <p id="error" class="error" hidden>The latest board is not available yet. The scheduled run may still be in progress.</p>
+  </section>
+  <footer>Probabilities are model estimates, not guarantees. Gamble responsibly.</footer>
+</main><script src="app.js"></script></body></html>
