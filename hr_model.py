@@ -3090,11 +3090,12 @@ def build_latest_pitch_fit_snapshot(model_df: pd.DataFrame) -> pd.DataFrame:
 def build_latest_matchup_snapshot(model_df: pd.DataFrame) -> pd.DataFrame:
     cols = [
         "batter", "pitcher",
-        "matchup_games_prior",  "matchup_hr_prior",
-          "matchup_hard_hit_rate_prior",
-          "matchup_recent_hr_rate_5",
-         "matchup_recent_avg_ev_3", "matchup_recent_pa_3",
-        
+        "matchup_games_prior", "matchup_pa_prior", "matchup_hr_prior",
+        "matchup_hr_rate_prior", "matchup_barrel_rate_prior",
+        "matchup_hard_hit_rate_prior", "matchup_avg_ev_prior",
+        "matchup_recent_hr_rate_3", "matchup_recent_hr_rate_5",
+        "matchup_recent_barrel_rate_3", "matchup_recent_avg_ev_3",
+        "matchup_recent_pa_3", "matchup_history_score_prior",
     ]
     latest = (
         model_df.sort_values(["batter", "pitcher", "game_date", "game_pk"])
@@ -3313,10 +3314,11 @@ def build_forward_board_input(model_df: pd.DataFrame, pa_df: pd.DataFrame, targe
         "pitcher_barrel_rate_vs_batter_hand_prior", "pitcher_hard_hit_rate_vs_batter_hand_prior",
         "pitcher_avg_ev_vs_batter_hand_prior",
         "pitch_fit_score_prior", "pitch_fit_coverage_prior",
-        "matchup_games_prior",  "matchup_hr_prior",
-          "matchup_hard_hit_rate_prior",
-          "matchup_recent_hr_rate_5",
-         "matchup_recent_avg_ev_3", "matchup_recent_pa_3",
+        "matchup_games_prior", "matchup_pa_prior", "matchup_hr_prior",
+        "matchup_hr_rate_prior", "matchup_barrel_rate_prior",
+        "matchup_hard_hit_rate_prior", "matchup_avg_ev_prior",
+        "matchup_recent_hr_rate_3", "matchup_recent_hr_rate_5",
+        "matchup_recent_barrel_rate_3", "matchup_recent_avg_ev_3", "matchup_recent_pa_3",
         "matchup_history_score_prior"
     ]
     for c in fill_zero_cols:
