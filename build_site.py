@@ -81,6 +81,7 @@ def main() -> None:
         "matchup_pa_prior", "matchup_hr_prior", "matchup_hr_rate_prior",
         "pitch_fit_score_prior", "platoon_advantage", "temp_f", "wind_speed_mph",
         "weather_blowing_out", "wind_out_to_pull_flag", "pull_wind_mph",
+        "wind_to_lf_mph", "wind_to_cf_mph", "wind_to_rf_mph",
         "relative_humidity", "is_roofed_no_wind", "park_factor",
     ]
     records = [
