@@ -803,9 +803,9 @@ def add_matchup_pregame_features(matchup_games: pd.DataFrame) -> pd.DataFrame:
         np.arange(len(df))
     ])
     for col_name, source, window in [
-        ( "_matchup_hr_game_shift", 3),
+        ("matchup_recent_hr_rate_3", "_matchup_hr_game_shift", 3),
         ("matchup_recent_hr_rate_5", "_matchup_hr_game_shift", 5),
-        ( "_matchup_barrel_rate_game_shift", 3),
+        ("matchup_recent_barrel_rate_3", "_matchup_barrel_rate_game_shift", 3),
         ("matchup_recent_avg_ev_3", "_matchup_avg_ev_game_shift", 3),
         ("matchup_recent_pa_3", "_matchup_pa_game_shift", 3),
     ]:
