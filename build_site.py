@@ -12,6 +12,41 @@ SITE = ROOT / "site"
 PREFIX = "trained_hr_model_simplified_raw_features"
 
 
+def build_backtest_payload() -> dict:
+    summary_path = ROOT / f"{PREFIX}_backtest_summary.csv"
+    scored_path = ROOT / f"{PREFIX}_scored_test_rows.csv"
+    if not summary_path.exists() or not scored_path.exists():
+        return {"summary": [], "daily": []}
+
+    summary = pd.read_csv(summary_path)
+    summary_records = [
+        {key: clean(value) for key, value in row.items()}
+        for row in summary.to_dict("records")
+    ]
+
+    scored = pd.read_csv(scored_path)
+    scored["game_date"] = pd.to_datetime(scored["game_date"], errors="coerce")
+    scored = scored.dropna(subset=["game_date"]).copy()
+    sort_col = "pred_hr_prob" if "pred_hr_prob" in scored else "raw_hr_prob"
+    scored = scored.sort_values(sort_col, ascending=False).drop_duplicates(["game_date", "batter"])
+    daily_records = []
+    for top_n in [10, 20, 50]:
+        ranked = scored.groupby("game_date", as_index=False, group_keys=False).head(top_n)
+        daily = ranked.groupby("game_date", as_index=False).agg(
+            players=("batter", "count"), homers=("home_run_game", "sum"), avg_model_prob=(sort_col, "mean")
+        ).sort_values("game_date")
+        daily["hit_rate"] = daily["homers"] / daily["players"]
+        daily["cumulative_players"] = daily["players"].cumsum()
+        daily["cumulative_homers"] = daily["homers"].cumsum()
+        daily["cumulative_hit_rate"] = daily["cumulative_homers"] / daily["cumulative_players"]
+        daily["top_n"] = top_n
+        daily["game_date"] = daily["game_date"].dt.strftime("%Y-%m-%d")
+        daily_records.extend(
+            {key: clean(value) for key, value in row.items()} for row in daily.to_dict("records")
+        )
+    return {"summary": summary_records, "daily": daily_records}
+
+
 def latest_board() -> Path:
     boards = sorted(ROOT.glob(f"{PREFIX}_board_????-??-??.csv"))
     boards = [p for p in boards if "graded" not in p.name]
@@ -56,6 +91,7 @@ def main() -> None:
         "targetDate": target_date,
         "updatedAt": datetime.now(timezone.utc).isoformat(),
         "featuredCount": min(50, len(records)),
+        "backtest": build_backtest_payload(),
         "rows": records,
     }
     (SITE / "data").mkdir(parents=True, exist_ok=True)

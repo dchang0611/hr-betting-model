@@ -2580,7 +2580,7 @@ def run_backtest(model, calibrator, test_df: pd.DataFrame) -> None:
     evaluate_probs(scored["home_run_game"], scored["calibrated_hr_prob"], "Test set calibrated")
 
     summaries = []
-    for n in [10, 20, 30]:
+    for n in [10, 20, 50]:
         summaries.append(summarize_top_n(scored, n))
 
     summary_df = pd.DataFrame(summaries)
