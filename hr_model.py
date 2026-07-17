@@ -687,6 +687,7 @@ def build_current_season_pitcher_stats(pa_df: pd.DataFrame, target_date: str) ->
       - pitcher
       - season_era
       - season_hr_allowed
+      - season_ip
     """
     target_ts = pd.to_datetime(target_date, errors="coerce")
     season = int(target_ts.year) if pd.notna(target_ts) else pd.Timestamp.today().year
@@ -728,11 +729,13 @@ def build_current_season_pitcher_stats(pa_df: pd.DataFrame, target_date: str) ->
                 stat.get("homeRuns", stat.get("homeRunsAllowed", np.nan)),
                 errors="coerce",
             )
+            innings_pitched = stat.get("inningsPitched", np.nan)
 
             rows.append({
                 "pitcher": int(pitcher_id),
                 "season_era": era,
                 "season_hr_allowed": hr_allowed,
+                "season_ip": innings_pitched,
             })
 
         # Stop if the API returned fewer rows than requested.
@@ -744,14 +747,15 @@ def build_current_season_pitcher_stats(pa_df: pd.DataFrame, target_date: str) ->
     out = pd.DataFrame(rows)
     if out.empty:
         print("⚠️ Official pitcher season stats returned no rows; ERA/HR columns will be blank.")
-        return pd.DataFrame(columns=["pitcher", "season_hr_allowed", "season_era"])
+        return pd.DataFrame(columns=["pitcher", "season_hr_allowed", "season_era", "season_ip"])
 
     out = out.drop_duplicates("pitcher", keep="first").copy()
     out["season_era"] = pd.to_numeric(out["season_era"], errors="coerce").round(2)
     out["season_hr_allowed"] = pd.to_numeric(out["season_hr_allowed"], errors="coerce").fillna(0).astype(int)
+    out["season_ip"] = pd.to_numeric(out["season_ip"], errors="coerce")
 
     print(f"Loaded official {season} pitcher season stats rows: {len(out):,}")
-    return out[["pitcher", "season_hr_allowed", "season_era"]]
+    return out[["pitcher", "season_hr_allowed", "season_era", "season_ip"]]
 
 
 def build_matchup_game_history(pa_df: pd.DataFrame) -> pd.DataFrame:
@@ -3122,11 +3126,13 @@ def build_forward_board_input(model_df: pd.DataFrame, pa_df: pd.DataFrame, targe
             "pitcher": "away_pitcher_id",
             "season_era": "away_era",
             "season_hr_allowed": "away_hr_allowed",
+            "season_ip": "away_ip",
         })
         home_stats = season_pitcher_stats.rename(columns={
             "pitcher": "home_pitcher_id",
             "season_era": "home_era",
             "season_hr_allowed": "home_hr_allowed",
+            "season_ip": "home_ip",
         })
 
         slate["away_pitcher_id"] = pd.to_numeric(slate["away_pitcher_id"], errors="coerce").astype("Int64")
@@ -3143,8 +3149,10 @@ def build_forward_board_input(model_df: pd.DataFrame, pa_df: pd.DataFrame, targe
     else:
         slate["away_era"] = np.nan
         slate["away_hr_allowed"] = np.nan
+        slate["away_ip"] = np.nan
         slate["home_era"] = np.nan
         slate["home_hr_allowed"] = np.nan
+        slate["home_ip"] = np.nan
 
     slate["commence_time"] = pd.to_datetime(slate["commence_time"], utc=True, errors="coerce")
     slate = slate.sort_values(["commence_time", "away_team", "home_team"]).reset_index(drop=True)
@@ -3216,6 +3224,9 @@ def build_forward_board_input(model_df: pd.DataFrame, pa_df: pd.DataFrame, targe
                         "pitcher": home_pitcher_id,
                         "pitcher_name": game.get("home_pitcher_name"),
                         "starter_pitcher_hand": hp_row["pitcher_hand"],
+                        "starter_season_era": game.get("home_era", np.nan),
+                        "starter_season_hr_allowed": game.get("home_hr_allowed", np.nan),
+                        "starter_season_ip": game.get("home_ip", np.nan),
                         "batting_team": away_team,
                         "fielding_team": home_team,
                         "venue_team": home_team,
@@ -3256,6 +3267,9 @@ def build_forward_board_input(model_df: pd.DataFrame, pa_df: pd.DataFrame, targe
                         "pitcher": away_pitcher_id,
                         "pitcher_name": game.get("away_pitcher_name"),
                         "starter_pitcher_hand": ap_row["pitcher_hand"],
+                        "starter_season_era": game.get("away_era", np.nan),
+                        "starter_season_hr_allowed": game.get("away_hr_allowed", np.nan),
+                        "starter_season_ip": game.get("away_ip", np.nan),
                         "batting_team": home_team,
                         "fielding_team": away_team,
                         "venue_team": home_team,
