@@ -1,0 +1,98 @@
+name: Backfill slate history to June 19
+
+on:
+  push:
+    branches: ["main"]
+    paths: [".github/workflows/backfill-history.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [0, 1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/cache@v4
+        with:
+          path: cache_trained_model
+          key: hr-model-cache-${{ runner.os }}-backfill-${{ matrix.group }}
+          restore-keys: hr-model-cache-${{ runner.os }}-
+      - run: pip install -r requirements.txt
+      - name: Rebuild historical slates
+        shell: bash
+        env:
+          GROUP: ${{ matrix.group }}
+          RUN_BACKTEST: "false"
+        run: |
+          newest=$((GROUP * 5 + 1))
+          oldest=$((GROUP * 5 + 5))
+          if [ "$newest" -gt 28 ]; then exit 0; fi
+          if [ "$oldest" -gt 28 ]; then oldest=28; fi
+          pacific_today=$(TZ=America/Los_Angeles date +%F)
+          mkdir -p backfill
+          for offset in $(seq "$oldest" -1 "$newest"); do
+            slate_date=$(date -d "$pacific_today -$offset day" +%F)
+            full_end=$(date -d "$slate_date -1 day" +%F)
+            train_end=$(date -d "$slate_date -60 days" +%F)
+            valid_end=$(date -d "$slate_date -30 days" +%F)
+            echo "Building $slate_date"
+            rm -f trained_hr_model_simplified_raw_features_board_????-??-??.csv
+            TARGET_DATE="$slate_date" FULL_DATA_END_DATE="$full_end" TRAIN_END_DATE="$train_end" VALID_END_DATE="$valid_end" python hr_model.py
+            TARGET_DATE="$slate_date" python build_site.py
+            if [ -f "site/data/history/$slate_date.json" ]; then
+              cp "site/data/history/$slate_date.json" "backfill/$slate_date.json"
+            fi
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backfill-${{ matrix.group }}
+          path: backfill/*.json
+          if-no-files-found: ignore
+
+  assemble:
+    runs-on: ubuntu-latest
+    needs: backfill
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: backfill-*
+          path: site/data/history
+          merge-multiple: true
+      - name: Merge history with the live site
+        run: python prepare_backfill_deploy.py
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: assemble
+    steps:
+      - name: Publish backfilled history
+        id: deployment
+        uses: actions/deploy-pages@v4

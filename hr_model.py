@@ -40,7 +40,7 @@ RECENCY_WEIGHT_2025 = 0.90
 RECENCY_WEIGHT_2026 = 1.40
 
 # If True, build historical out-of-sample backtest rows for all dates > VALID_END_DATE
-RUN_BACKTEST = True
+RUN_BACKTEST = os.getenv("RUN_BACKTEST", "true").lower() == "true"
 
 # If True, also create a forward-looking board for TARGET_DATE
 RUN_FORWARD_BOARD = True
