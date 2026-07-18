@@ -77,6 +77,7 @@ def build_backtest_payload() -> dict:
     scored["outcome"] = pd.to_numeric(scored["home_run_game"], errors="coerce")
     scored = scored.dropna(subset=["outcome"])
     scored["outcome"] = (scored["outcome"] > 0).astype(int)
+    completed_dates = set(scored["game_date"].unique())
     name_col = next(
         (column for column in ["batter_name", "batter_name_hand", "player_name"] if column in scored.columns),
         None,
@@ -133,6 +134,8 @@ def build_backtest_payload() -> dict:
                 outcome = outcome_by_id.get((game_date, int(batter_id)))
             if outcome is None:
                 outcome = outcome_by_name.get((game_date, name_key))
+            if outcome is None and game_date in completed_dates:
+                outcome = 0
             record["outcome"] = outcome
             record["display_name"] = re.sub(
                 r"\s*\([LRS]\)\s*$", "", str(display_name), flags=re.IGNORECASE
