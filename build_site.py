@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.request import urlopen
@@ -44,32 +46,112 @@ def restore_history() -> None:
         print(f"No live board snapshot restored: {exc}")
 
 
-def build_backtest_payload() -> dict:
-    scored_path = ROOT / f"{PREFIX}_scored_test_rows.csv"
-    if not scored_path.exists():
+def live_backtest_fallback() -> dict:
+    try:
+        with urlopen(f"{HISTORY_BASE_URL}/data/board.json", timeout=15) as response:
+            return json.load(response).get("backtest", {"summary": [], "daily": [], "drivers": []})
+    except Exception:
         return {"summary": [], "daily": [], "drivers": []}
 
-    scored = pd.read_csv(scored_path)
-    scored["game_date"] = pd.to_datetime(scored["game_date"], errors="coerce")
-    scored = scored.dropna(subset=["game_date"]).copy()
-    sort_col = "pred_hr_prob" if "pred_hr_prob" in scored else "raw_hr_prob"
-    scored[sort_col] = pd.to_numeric(scored[sort_col], errors="coerce")
-    scored["home_run_game"] = pd.to_numeric(scored["home_run_game"], errors="coerce").fillna(0)
-    scored = scored.dropna(subset=[sort_col, "batter"])
-    scored = scored.sort_values(["game_date", sort_col], ascending=[True, False])
-    scored = scored.drop_duplicates(["game_date", "batter"])
-    scored["backtest_rank"] = scored.groupby("game_date").cumcount() + 1
 
+def normalize_player_name(value) -> str:
+    """Normalize names so archived display labels can be joined to results."""
+    if pd.isna(value):
+        return ""
+    text = unicodedata.normalize("NFKD", str(value))
+    text = "".join(character for character in text if not unicodedata.combining(character))
+    text = re.sub(r"\s*\([LRS]\)\s*$", "", text, flags=re.IGNORECASE)
+    return re.sub(r"[^a-z0-9]+", "", text.lower())
+
+
+def build_backtest_payload() -> dict:
+    """Grade exact archived boards; use scored model rows only for outcomes."""
+    scored_path = ROOT / f"{PREFIX}_scored_test_rows.csv"
+    history_paths = sorted(HISTORY.glob("????-??-??.json"))
+    if not scored_path.exists() or not history_paths:
+        return live_backtest_fallback()
+
+    scored = pd.read_csv(scored_path)
+    scored["game_date"] = pd.to_datetime(scored["game_date"], errors="coerce").dt.strftime("%Y-%m-%d")
+    scored = scored.dropna(subset=["game_date"]).copy()
+    scored["outcome"] = pd.to_numeric(scored["home_run_game"], errors="coerce")
+    scored = scored.dropna(subset=["outcome"])
+    scored["outcome"] = (scored["outcome"] > 0).astype(int)
     name_col = next(
         (column for column in ["batter_name", "batter_name_hand", "player_name"] if column in scored.columns),
         None,
     )
+    scored["name_key"] = scored[name_col].map(normalize_player_name) if name_col else ""
+    scored["batter_key"] = (
+        pd.to_numeric(scored["batter"], errors="coerce").astype("Int64")
+        if "batter" in scored
+        else pd.Series(pd.NA, index=scored.index, dtype="Int64")
+    )
+    scored["game_pk_key"] = (
+        pd.to_numeric(scored["game_pk"], errors="coerce").astype("Int64")
+        if "game_pk" in scored
+        else pd.Series(pd.NA, index=scored.index, dtype="Int64")
+    )
+    id_rows = scored.dropna(subset=["batter_key"])
+    name_rows = scored[scored["name_key"] != ""]
+    outcome_by_game_id = id_rows.dropna(subset=["game_pk_key"]).groupby(
+        ["game_date", "game_pk_key", "batter_key"]
+    )["outcome"].max().to_dict()
+    outcome_by_game_name = name_rows.dropna(subset=["game_pk_key"]).groupby(
+        ["game_date", "game_pk_key", "name_key"]
+    )["outcome"].max().to_dict()
+    outcome_by_id = id_rows.groupby(["game_date", "batter_key"])["outcome"].max().to_dict()
+    outcome_by_name = name_rows.groupby(["game_date", "name_key"])["outcome"].max().to_dict()
+
+    board_rows = []
+    for path in history_paths:
+        try:
+            archive = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            print(f"Could not read historical board {path.name}: {exc}")
+            continue
+        game_date = str(archive.get("targetDate") or path.stem)
+        for fallback_rank, row in enumerate(archive.get("rows", []), start=1):
+            record = dict(row)
+            record["game_date"] = game_date
+            ranking = pd.to_numeric(record.get("ranking"), errors="coerce")
+            record["ranking"] = int(ranking) if pd.notna(ranking) else fallback_rank
+            probability = pd.to_numeric(
+                record.get("final_hr_probability", record.get("calibrated_hr_probability")), errors="coerce"
+            )
+            record["probability"] = probability / 100 if pd.notna(probability) and probability > 1 else probability
+            batter_id = pd.to_numeric(record.get("batter"), errors="coerce")
+            game_pk = pd.to_numeric(record.get("game_pk"), errors="coerce")
+            display_name = record.get("batter_name_hand", record.get("batter_name", ""))
+            name_key = normalize_player_name(display_name)
+            outcome = None
+            if pd.notna(game_pk) and pd.notna(batter_id):
+                outcome = outcome_by_game_id.get((game_date, int(game_pk), int(batter_id)))
+            if outcome is None and pd.notna(game_pk):
+                outcome = outcome_by_game_name.get((game_date, int(game_pk), name_key))
+            if outcome is None and pd.notna(batter_id):
+                outcome = outcome_by_id.get((game_date, int(batter_id)))
+            if outcome is None:
+                outcome = outcome_by_name.get((game_date, name_key))
+            record["outcome"] = outcome
+            record["display_name"] = re.sub(
+                r"\s*\([LRS]\)\s*$", "", str(display_name), flags=re.IGNORECASE
+            )
+            board_rows.append(record)
+
+    if not board_rows:
+        return live_backtest_fallback()
+
+    board = pd.DataFrame(board_rows).sort_values(["game_date", "ranking"])
+    summary_records = []
+    daily_records = []
+    driver_records = []
     driver_columns = {
-        "batter_power_score_prior": "Batter power",
+        "batter_power": "Batter power",
         "batter_recent_hr_rate_10": "Recent HR rate",
         "batter_barrel_rate_prior": "Barrel rate",
         "batter_hard_hit_rate_prior": "Hard-hit rate",
-        "pitcher_damage_score_prior": "Pitcher vulnerability",
+        "pitcher_vulnerability": "Pitcher vulnerability",
         "pitcher_hr_rate_allowed_prior": "Pitcher HR rate allowed",
         "pitcher_recent_hr_allowed_rate_10": "Recent pitcher HR rate allowed",
         "pitcher_k_rate_prior": "Pitcher strikeout rate",
@@ -78,37 +160,37 @@ def build_backtest_payload() -> dict:
         "pull_wind_mph": "Pull-side wind",
         "batter_recent_pa_10": "Recent plate appearances",
     }
-
-    summary_records = []
-    daily_records = []
-    driver_records = []
     for top_n in [10, 20, 30, 40]:
-        ranked = scored.groupby("game_date", as_index=False, group_keys=False).head(top_n)
-        homer_hitters = {}
-        if name_col:
-            for game_date, group in ranked[ranked["home_run_game"] > 0].groupby("game_date"):
-                homer_hitters[game_date.strftime("%Y-%m-%d")] = [
-                    {
-                        "name": clean(row[name_col]),
-                        "rank": int(row["backtest_rank"]),
-                        "probability": clean(row[sort_col]),
-                    }
-                    for _, row in group.sort_values("backtest_rank").iterrows()
-                ]
+        selected = board.groupby("game_date", as_index=False, group_keys=False).head(top_n).copy()
+        ranked = selected[selected["outcome"].notna()].copy()
+        if ranked.empty:
+            continue
+        ranked["outcome"] = pd.to_numeric(ranked["outcome"], errors="coerce")
+        homer_hitters = {
+            game_date: [
+                {
+                    "name": clean(row.display_name),
+                    "rank": int(row.ranking),
+                    "probability": clean(row.probability),
+                }
+                for row in group.sort_values("ranking").itertuples()
+            ]
+            for game_date, group in ranked[ranked["outcome"] > 0].groupby("game_date")
+        }
         daily = ranked.groupby("game_date", as_index=False).agg(
-            players=("batter", "count"), homers=("home_run_game", "sum"), avg_model_prob=(sort_col, "mean")
+            players=("outcome", "count"),
+            homers=("outcome", "sum"),
+            avg_model_prob=("probability", "mean"),
         ).sort_values("game_date")
         daily["hit_rate"] = daily["homers"] / daily["players"].replace(0, pd.NA)
         daily["cumulative_players"] = daily["players"].cumsum()
         daily["cumulative_homers"] = daily["homers"].cumsum()
         daily["cumulative_hit_rate"] = daily["cumulative_homers"] / daily["cumulative_players"]
         daily["top_n"] = top_n
-        daily["game_date"] = daily["game_date"].dt.strftime("%Y-%m-%d")
         for row in daily.to_dict("records"):
             record = {key: clean(value) for key, value in row.items()}
             record["home_run_hitters"] = homer_hitters.get(record["game_date"], [])
             daily_records.append(record)
-
         summary_records.append({
             "top_n": top_n,
             "days": int(len(daily)),
@@ -116,16 +198,13 @@ def build_backtest_payload() -> dict:
             "total_homers": int(daily["homers"].sum()),
             "avg_daily_hit_rate": clean(daily["hit_rate"].mean()),
             "overall_hit_rate": clean(daily["homers"].sum() / daily["players"].sum()),
-            "avg_model_prob": clean(ranked[sort_col].mean()),
+            "avg_model_prob": clean(ranked["probability"].mean()),
         })
-
         available = [column for column in driver_columns if column in ranked.columns]
         if available and len(daily) >= 8:
-            ranked = ranked.copy()
             ranked[available] = ranked[available].apply(pd.to_numeric, errors="coerce")
             analysis = ranked.groupby("game_date")[available].mean(numeric_only=True).join(
-                daily.assign(game_date=pd.to_datetime(daily["game_date"])).set_index("game_date")["hit_rate"],
-                how="inner",
+                daily.set_index("game_date")["hit_rate"], how="inner"
             ).dropna(subset=["hit_rate"])
             low_cut = analysis["hit_rate"].quantile(0.25)
             high_cut = analysis["hit_rate"].quantile(0.75)
