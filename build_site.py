@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.request import urlopen
 
 import pandas as pd
 
@@ -10,6 +12,36 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent
 SITE = ROOT / "site"
 PREFIX = "trained_hr_model_simplified_raw_features"
+HISTORY = SITE / "data" / "history"
+HISTORY_BASE_URL = "https://dchang0611.github.io/hr-betting-model"
+
+
+def restore_history() -> None:
+    """Carry prior deployed slate snapshots into the next Pages artifact."""
+    base = os.getenv("HISTORY_BASE_URL", HISTORY_BASE_URL).rstrip("/")
+    HISTORY.mkdir(parents=True, exist_ok=True)
+    try:
+        with urlopen(f"{base}/data/history/index.json", timeout=15) as response:
+            index = json.load(response)
+        for slate_date in index.get("dates", []):
+            if not str(slate_date).replace("-", "").isdigit():
+                continue
+            with urlopen(f"{base}/data/history/{slate_date}.json", timeout=15) as response:
+                (HISTORY / f"{slate_date}.json").write_bytes(response.read())
+    except Exception as exc:
+        print(f"No prior history index restored: {exc}")
+
+    try:
+        with urlopen(f"{base}/data/board.json", timeout=15) as response:
+            live_board = json.load(response)
+        live_date = str(live_board.get("targetDate", ""))
+        if live_date.replace("-", "").isdigit():
+            live_archive = {key: value for key, value in live_board.items() if key != "backtest"}
+            (HISTORY / f"{live_date}.json").write_text(
+                json.dumps(live_archive, indent=2), encoding="utf-8"
+            )
+    except Exception as exc:
+        print(f"No live board snapshot restored: {exc}")
 
 
 def build_backtest_payload() -> dict:
@@ -138,6 +170,7 @@ def clean(value):
 
 
 def main() -> None:
+    restore_history()
     board_path = latest_board()
     frame = pd.read_csv(board_path).sort_values("ranking")
     columns = [
@@ -164,15 +197,23 @@ def main() -> None:
         for row in frame[[c for c in columns if c in frame.columns]].to_dict("records")
     ]
     target_date = str(frame["target_date"].iloc[0]) if "target_date" in frame else board_path.stem[-10:]
-    payload = {
+    archive_payload = {
         "targetDate": target_date,
         "updatedAt": datetime.now(timezone.utc).isoformat(),
         "featuredCount": min(40, len(records)),
-        "backtest": build_backtest_payload(),
         "rows": records,
     }
     (SITE / "data").mkdir(parents=True, exist_ok=True)
+    (HISTORY / f"{target_date}.json").write_text(
+        json.dumps(archive_payload, indent=2), encoding="utf-8"
+    )
+    payload = dict(archive_payload)
+    payload["backtest"] = build_backtest_payload()
     (SITE / "data" / "board.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    history_dates = sorted((path.stem for path in HISTORY.glob("????-??-??.json")), reverse=True)
+    (HISTORY / "index.json").write_text(
+        json.dumps({"dates": history_dates}, indent=2), encoding="utf-8"
+    )
     frame.to_csv(SITE / "data" / "latest-board.csv", index=False)
 
 

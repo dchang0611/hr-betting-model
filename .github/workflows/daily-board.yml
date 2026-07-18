@@ -43,8 +43,10 @@ jobs:
       - name: Set automatic dates
         shell: bash
         run: |
-          if [ -z "$TARGET_DATE" ]; then echo "TARGET_DATE=$(date -u +%F)" >> "$GITHUB_ENV"; fi
-          echo "FULL_DATA_END_DATE=$(date -u -d 'yesterday' +%F)" >> "$GITHUB_ENV"
+          if [ -z "$TARGET_DATE" ]; then TARGET_DATE=$(TZ=America/Los_Angeles date +%F); fi
+          FULL_DATA_END_DATE=$(date -d "${TARGET_DATE} -1 day" +%F)
+          echo "TARGET_DATE=$TARGET_DATE" >> "$GITHUB_ENV"
+          echo "FULL_DATA_END_DATE=$FULL_DATA_END_DATE" >> "$GITHUB_ENV"
       - name: Run model
         run: python hr_model.py
       - name: Build website data

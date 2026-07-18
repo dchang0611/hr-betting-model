@@ -18,3 +18,23 @@
 .pitcher-matchup-table td:not(:first-child) {
   font-variant-numeric: tabular-nums;
 }
+
+.summary label {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.summary select {
+  width: 100%;
+  margin-top: 5px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #091811;
+  color: var(--text);
+  font: inherit;
+  font-weight: 800;
+}
