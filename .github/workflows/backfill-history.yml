@@ -7,6 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -22,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [0, 1, 2, 3, 4, 5]
+        group: [0]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -55,6 +56,11 @@ jobs:
             echo "Building $slate_date"
             rm -f trained_hr_model_simplified_raw_features_board_????-??-??.csv
             TARGET_DATE="$slate_date" FULL_DATA_END_DATE="$full_end" TRAIN_END_DATE="$train_end" VALID_END_DATE="$valid_end" python hr_model.py
+            board_path="trained_hr_model_simplified_raw_features_board_$slate_date.csv"
+            if [ ! -f "$board_path" ]; then
+              echo "No MLB slate for $slate_date; skipping."
+              continue
+            fi
             TARGET_DATE="$slate_date" python build_site.py
             if [ -f "site/data/history/$slate_date.json" ]; then
               cp "site/data/history/$slate_date.json" "backfill/$slate_date.json"
@@ -76,6 +82,15 @@ jobs:
           python-version: "3.12"
       - uses: actions/download-artifact@v4
         with:
+          pattern: backfill-*
+          path: site/data/history
+          merge-multiple: true
+      - name: Reuse successful batches from the prior run
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 29623687364
           pattern: backfill-*
           path: site/data/history
           merge-multiple: true
