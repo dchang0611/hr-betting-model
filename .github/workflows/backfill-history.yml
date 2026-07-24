@@ -44,8 +44,8 @@ jobs:
         run: |
           newest=$((GROUP * 5 + 1))
           oldest=$((GROUP * 5 + 5))
-          if [ "$newest" -gt 28 ]; then exit 0; fi
-          if [ "$oldest" -gt 28 ]; then oldest=28; fi
+          if [ "$newest" -gt 35 ]; then exit 0; fi
+          if [ "$oldest" -gt 35 ]; then oldest=35; fi
           pacific_today=$(TZ=America/Los_Angeles date +%F)
           mkdir -p backfill
           for offset in $(seq "$oldest" -1 "$newest"); do
