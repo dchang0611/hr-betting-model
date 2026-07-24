@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,24 +19,42 @@ HISTORY = SITE / "data" / "history"
 HISTORY_BASE_URL = "https://dchang0611.github.io/hr-betting-model"
 
 
+def fetch_json(url: str, attempts: int = 3) -> dict:
+    """Fetch JSON with short retries for temporary GitHub Pages outages."""
+    last_error = None
+    for attempt in range(1, attempts + 1):
+        try:
+            with urlopen(url, timeout=20) as response:
+                return json.load(response)
+        except Exception as exc:
+            last_error = exc
+            if attempt < attempts:
+                time.sleep(attempt * 2)
+    raise RuntimeError(f"Could not fetch {url} after {attempts} attempts: {last_error}")
+
+
 def restore_history() -> None:
     """Carry prior deployed slate snapshots into the next Pages artifact."""
     base = os.getenv("HISTORY_BASE_URL", HISTORY_BASE_URL).rstrip("/")
     HISTORY.mkdir(parents=True, exist_ok=True)
     try:
-        with urlopen(f"{base}/data/history/index.json", timeout=15) as response:
-            index = json.load(response)
+        index = fetch_json(f"{base}/data/history/index.json")
         for slate_date in index.get("dates", []):
             if not str(slate_date).replace("-", "").isdigit():
                 continue
-            with urlopen(f"{base}/data/history/{slate_date}.json", timeout=15) as response:
-                (HISTORY / f"{slate_date}.json").write_bytes(response.read())
+            destination = HISTORY / f"{slate_date}.json"
+            if destination.exists():
+                continue
+            try:
+                with urlopen(f"{base}/data/history/{slate_date}.json", timeout=20) as response:
+                    destination.write_bytes(response.read())
+            except Exception as exc:
+                print(f"Could not restore historical slate {slate_date}: {exc}")
     except Exception as exc:
         print(f"No prior history index restored: {exc}")
 
     try:
-        with urlopen(f"{base}/data/board.json", timeout=15) as response:
-            live_board = json.load(response)
+        live_board = fetch_json(f"{base}/data/board.json")
         live_date = str(live_board.get("targetDate", ""))
         if live_date.replace("-", "").isdigit():
             live_archive = {key: value for key, value in live_board.items() if key != "backtest"}
@@ -44,6 +63,15 @@ def restore_history() -> None:
             )
     except Exception as exc:
         print(f"No live board snapshot restored: {exc}")
+
+    minimum_dates = int(os.getenv("MIN_HISTORY_DATES", "0"))
+    restored_dates = set(path.stem for path in HISTORY.glob("????-??-??.json"))
+    if len(restored_dates) < minimum_dates:
+        raise RuntimeError(
+            "History safety check failed: "
+            f"found {len(restored_dates)} archived dates, but at least {minimum_dates} are required. "
+            "Stopping before deployment so the existing website history is not overwritten."
+        )
 
 
 def live_backtest_fallback() -> dict:

@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [0]
+        group: [0, 1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -80,17 +80,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Restore durable board history
+        uses: actions/cache@v4
+        with:
+          path: site/data/history
+          key: hr-board-history-${{ github.run_id }}
+          restore-keys: hr-board-history-
       - uses: actions/download-artifact@v4
         with:
-          pattern: backfill-*
-          path: site/data/history
-          merge-multiple: true
-      - name: Reuse successful batches from the prior run
-        uses: actions/download-artifact@v4
-        with:
-          github-token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          run-id: 29623687364
           pattern: backfill-*
           path: site/data/history
           merge-multiple: true
