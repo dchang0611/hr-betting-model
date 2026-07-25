@@ -286,6 +286,26 @@ def main() -> None:
     frame = pd.read_csv(board_path).sort_values("ranking")
     target_date = str(frame["target_date"].iloc[0]) if "target_date" in frame else board_path.stem[-10:]
     frame, odds_status = add_value_odds(frame, target_date)
+    source_date = odds_status.get("sourceDate")
+    if source_date and source_date != target_date:
+        historical_path = HISTORY / f"{source_date}.json"
+        if historical_path.exists():
+            historical_payload = json.loads(historical_path.read_text(encoding="utf-8"))
+            historical_frame = pd.DataFrame(historical_payload.get("rows", []))
+            if not historical_frame.empty:
+                historical_frame, historical_status = add_value_odds(historical_frame, source_date)
+                historical_payload["rows"] = [
+                    {key: clean(value) for key, value in row.items()}
+                    for row in historical_frame.to_dict("records")
+                ]
+                historical_payload["oddsStatus"] = historical_status
+                historical_path.write_text(
+                    json.dumps(historical_payload, indent=2), encoding="utf-8"
+                )
+                if historical_status.get("available"):
+                    odds_status["message"] += (
+                        f" Odds were attached to the archived {source_date} slate."
+                    )
     columns = [
         "ranking", "game_pk", "commence_time", "batter_name_hand", "batting_team",
         "fielding_team", "is_home_batter", "game_matchup", "pitcher_name_hand",

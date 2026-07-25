@@ -43,10 +43,22 @@ function renderValueBoard() {
   }).join("") || '<tr><td colspan="8" class="error">No current VegasInsider odds matched this slate. No value picks were issued.</td></tr>';
 }
 
-fetch("data/board.json", { cache: "no-store" })
-  .then(response => response.ok ? response.json() : Promise.reject())
-  .then(data => { valuePayload = data; renderValueBoard(); })
-  .catch(() => { oddsStatus.textContent = "The value board is not available yet."; });
+function loadValuePayload(date = "") {
+  const url = date ? `data/history/${encodeURIComponent(date)}.json` : "data/board.json";
+  return fetch(url, { cache: "no-store" })
+    .then(response => response.ok ? response.json() : Promise.reject())
+    .then(data => { valuePayload = data; renderValueBoard(); })
+    .catch(() => {
+      valuePayload = { rows: [], oddsStatus: {} };
+      oddsStatus.textContent = "The value board is not available for this slate.";
+      renderValueBoard();
+    });
+}
+
+loadValuePayload();
+document.querySelector("#date-select").addEventListener("change", event => {
+  loadValuePayload(event.target.value);
+});
 
 document.querySelectorAll('.tab[data-view="value"]').forEach(button => button.addEventListener("click", () => {
   document.querySelector("#players-view").hidden = true;
@@ -56,7 +68,7 @@ document.querySelectorAll('.tab[data-view="value"]').forEach(button => button.ad
   document.querySelector("#search").hidden = true;
   document.querySelector("#view-kicker").textContent = "LIVE MARKET";
   document.querySelector("#view-title").textContent = "Value home-run picks";
-  renderValueBoard();
+  loadValuePayload(document.querySelector("#date-select").value);
 }));
 
 document.querySelectorAll('.tab:not([data-view="value"])').forEach(button => button.addEventListener("click", () => {
