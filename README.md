@@ -12,3 +12,14 @@ This project runs the home-run model every day on GitHub-hosted compute and publ
 The workflow then runs daily at 9:15 AM Pacific during daylight time. GitHub schedules use UTC, so adjust the cron by one hour in winter if exact local timing matters.
 
 Use the workflow's **Run workflow** button with an optional date for a manual rerun. The model automatically uses yesterday as the last complete Statcast data date and today as the board date.
+
+## Value picks
+
+The website's **Value picks** tab compares the model's conservative calibrated
+home-run probability with the best price displayed on VegasInsider's free MLB
+home-run odds page. It shows the named sportsbook, implied probability,
+probability edge, and expected value.
+
+The collector intentionally fails closed. If VegasInsider is unavailable, its
+table changes, or its displayed date does not match the model slate, the normal
+player board still publishes and the value tab issues no picks.

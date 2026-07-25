@@ -47,6 +47,8 @@ jobs:
           key: hr-model-cache-${{ runner.os }}-${{ github.run_id }}
           restore-keys: hr-model-cache-${{ runner.os }}-
       - run: pip install -r requirements.txt
+      - name: Test odds collector
+        run: python -m unittest discover -s tests
       - name: Set automatic dates
         shell: bash
         run: |

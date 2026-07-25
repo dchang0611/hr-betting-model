@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.request import urlopen
 
 import pandas as pd
+from vegasinsider_odds import add_value_odds
 
 
 ROOT = Path(__file__).resolve().parent
@@ -283,6 +284,8 @@ def main() -> None:
     restore_history()
     board_path = latest_board()
     frame = pd.read_csv(board_path).sort_values("ranking")
+    target_date = str(frame["target_date"].iloc[0]) if "target_date" in frame else board_path.stem[-10:]
+    frame, odds_status = add_value_odds(frame, target_date)
     columns = [
         "ranking", "game_pk", "commence_time", "batter_name_hand", "batting_team",
         "fielding_team", "is_home_batter", "game_matchup", "pitcher_name_hand",
@@ -301,16 +304,19 @@ def main() -> None:
         "weather_blowing_out", "wind_out_to_pull_flag", "pull_wind_mph",
         "wind_to_lf_mph", "wind_to_cf_mph", "wind_to_rf_mph",
         "relative_humidity", "is_roofed_no_wind", "park_factor",
+        "best_hr_odds", "best_hr_book", "fanduel_hr_odds", "all_hr_odds",
+        "market_implied_probability", "value_edge_pct_points",
+        "expected_value_pct", "value_label",
     ]
     records = [
         {key: clean(value) for key, value in row.items()}
         for row in frame[[c for c in columns if c in frame.columns]].to_dict("records")
     ]
-    target_date = str(frame["target_date"].iloc[0]) if "target_date" in frame else board_path.stem[-10:]
     archive_payload = {
         "targetDate": target_date,
         "updatedAt": datetime.now(timezone.utc).isoformat(),
         "featuredCount": min(40, len(records)),
+        "oddsStatus": odds_status,
         "rows": records,
     }
     (SITE / "data").mkdir(parents=True, exist_ok=True)
