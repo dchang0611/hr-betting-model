@@ -4,8 +4,12 @@ on:
   push:
     branches: ["main"]
   schedule:
-    # 16:15 UTC is 9:15 AM Pacific during daylight time.
-    - cron: "15 16 * * *"
+    # Multiple early runs protect against GitHub scheduler delays and refresh
+    # odds as lineups and markets become available. During daylight time these
+    # are 3:05 AM, 5:05 AM, and 7:05 AM Pacific.
+    - cron: "5 10 * * *"
+    - cron: "5 12 * * *"
+    - cron: "5 14 * * *"
   workflow_dispatch:
     inputs:
       target_date:
