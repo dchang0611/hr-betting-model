@@ -263,6 +263,11 @@ def save_backtest(
     scored = test.copy()
     scored["raw_tb_probability"] = model.predict_proba(clean_matrix(scored, cols))[:, 1]
     scored["pred_tb_probability"] = calibrator.predict(scored["raw_tb_probability"])
+    scored = (
+        scored.sort_values(["game_date", "pred_tb_probability"], ascending=[True, False])
+        .drop_duplicates(["game_date", "batter"], keep="first")
+        .copy()
+    )
     evaluate(scored[TARGET_COLUMN], scored["pred_tb_probability"], "Test calibrated")
     scored.to_csv(f"{PREFIX}_scored_test_rows.csv", index=False)
 
