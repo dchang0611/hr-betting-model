@@ -30,7 +30,11 @@ def backtest_payload() -> dict:
     summary = pd.read_csv(summary_path)
     scored = pd.read_csv(scored_path)
     scored["game_date"] = pd.to_datetime(scored["game_date"], errors="coerce")
-    scored = scored.dropna(subset=["game_date"])
+    scored = (
+        scored.dropna(subset=["game_date"])
+        .sort_values(["game_date", "pred_tb_probability"], ascending=[True, False])
+        .drop_duplicates(["game_date", "batter"], keep="first")
+    )
     daily_records = []
     for top_n in [10, 20, 50]:
         ranked = (
