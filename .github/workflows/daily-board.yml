@@ -4,11 +4,8 @@ on:
   push:
     branches: ["main"]
   schedule:
-    # During daylight time these are 9:15 AM, 10:15 AM, and 11:15 AM Pacific.
-    # The later runs refresh odds and confirmed-lineup information.
+    # 16:15 UTC is 9:15 AM Pacific during daylight time.
     - cron: "15 16 * * *"
-    - cron: "15 17 * * *"
-    - cron: "15 18 * * *"
   workflow_dispatch:
     inputs:
       target_date:
@@ -31,19 +28,12 @@ jobs:
     timeout-minutes: 330
     env:
       TARGET_DATE: ${{ inputs.target_date }}
-      MIN_HISTORY_DATES: "10"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
-      - name: Restore durable board history
-        uses: actions/cache@v4
-        with:
-          path: site/data/history
-          key: hr-board-history-${{ github.run_id }}
-          restore-keys: hr-board-history-
       - uses: actions/cache@v4
         with:
           path: cache_trained_model
@@ -55,14 +45,16 @@ jobs:
       - name: Set automatic dates
         shell: bash
         run: |
-          if [ -z "$TARGET_DATE" ]; then TARGET_DATE=$(TZ=America/Los_Angeles date +%F); fi
-          FULL_DATA_END_DATE=$(date -d "${TARGET_DATE} -1 day" +%F)
-          echo "TARGET_DATE=$TARGET_DATE" >> "$GITHUB_ENV"
-          echo "FULL_DATA_END_DATE=$FULL_DATA_END_DATE" >> "$GITHUB_ENV"
+          if [ -z "$TARGET_DATE" ]; then echo "TARGET_DATE=$(date -u +%F)" >> "$GITHUB_ENV"; fi
+          echo "FULL_DATA_END_DATE=$(date -u -d 'yesterday' +%F)" >> "$GITHUB_ENV"
       - name: Run model
         run: python hr_model.py
       - name: Build website data
         run: python build_site.py
+      - name: Run total bases model
+        run: python tb_model.py
+      - name: Build total bases website
+        run: python build_tb_site.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
