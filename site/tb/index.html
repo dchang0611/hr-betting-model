@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#07141c">
+  <title>Daily Total Bases Board</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main>
+  <header>
+    <div><p class="eyebrow">MLB TOTAL BASES MODEL</p><h1>Daily TB Board</h1>
+      <p class="lede">Independent projections for over 1.5 total bases.</p></div>
+    <a class="download" href="data/latest-board.csv">Download CSV</a>
+  </header>
+  <section class="summary">
+    <div><span>Slate</span><strong id="date">Loading…</strong></div>
+    <div><span>Players ranked</span><strong id="count">—</strong></div>
+    <div><span>Last refreshed</span><strong id="updated">—</strong></div>
+  </section>
+  <nav class="tabs">
+    <button class="active" data-view="board">Player board</button>
+    <button data-view="games">Games</button>
+    <button data-view="performance">Backtest</button>
+  </nav>
+  <section class="panel">
+    <p id="status" class="status"></p>
+    <div class="toolbar"><h2 id="title">Player projections</h2>
+      <input id="search" type="search" placeholder="Find player, team, or pitcher"></div>
+    <div id="board-view" class="table-wrap"><table><thead><tr>
+      <th>Rank</th><th>Player</th><th>Matchup</th><th>Pitcher</th>
+      <th>Over 1.5 TB</th><th>Signal</th><th>Recent TB/PA</th><th></th>
+    </tr></thead><tbody id="rows"></tbody></table></div>
+    <div id="games-view" hidden></div>
+    <div id="performance-view" hidden>
+      <div id="cards" class="cards"></div>
+      <div class="toolbar"><h2>Daily results</h2><select id="top-n">
+        <option value="10">Top 10</option><option value="20">Top 20</option>
+        <option value="50" selected>Top 50</option></select></div>
+      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Players</th>
+        <th>Wins</th><th>Hit rate</th><th>Cumulative</th><th>Avg projection</th>
+      </tr></thead><tbody id="backtest-rows"></tbody></table></div>
+    </div>
+    <p id="error" hidden>The latest TB board is not available yet.</p>
+  </section>
+  <footer>Model projections are not guarantees. Compare projections with available prices and gamble responsibly.</footer>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
