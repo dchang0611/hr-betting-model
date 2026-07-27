@@ -32,8 +32,33 @@ function renderBacktest(){
   const summaries=payload.backtest?.summary||[];
   document.querySelector("#cards").innerHTML=summaries.map(s=>`<div class="card"><span>Top ${s.top_n}</span><h3>${pct(s.hit_rate)}</h3><small>${s.wins} wins / ${s.players} picks</small></div>`).join("");
   const n=Number(document.querySelector("#top-n").value);
-  const daily=(payload.backtest?.daily||[]).filter(r=>Number(r.top_n)===n);
-  document.querySelector("#backtest-rows").innerHTML=daily.map(r=>`<tr><td>${r.game_date}</td><td>${r.players}</td><td>${r.wins}</td><td>${pct(r.hit_rate)}</td><td>${pct(r.cumulative_hit_rate)}</td><td>${pct(r.avg_model_probability)}</td></tr>`).join("");
+  const start=document.querySelector("#backtest-start").value;
+  const end=document.querySelector("#backtest-end").value;
+  const chronological=(payload.backtest?.daily||[])
+    .filter(r=>Number(r.top_n)===n&&(!start||r.game_date>=start)&&(!end||r.game_date<=end))
+    .sort((a,b)=>a.game_date.localeCompare(b.game_date));
+  let cumulativePlayers=0,cumulativeWins=0;
+  chronological.forEach(r=>{
+    cumulativePlayers+=Number(r.players);
+    cumulativeWins+=Number(r.wins);
+    r.filtered_cumulative_hit_rate=cumulativeWins/cumulativePlayers;
+  });
+  const daily=[...chronological].reverse();
+  const available=payload.backtest?.dateRange;
+  document.querySelector("#backtest-range").textContent=available?.min
+    ?`Available backtest: ${available.min} through ${available.max} · Showing ${daily.length} game dates`
+    :"No backtest dates are available.";
+  document.querySelector("#backtest-rows").innerHTML=daily.map(r=>{
+    const key=`bt-${n}-${r.game_date}`;
+    const picks=(r.picks||[]).map(p=>`<div class="pick-row"><span>#${p.rank}</span><strong>${p.player}</strong><span>${p.team||"—"} vs ${p.opponent||"—"}</span><span>${pct(p.probability)}</span><span class="pick-result ${p.won?"win":"loss"}">${p.won?`Won · ${p.total_bases} TB`:`Lost · ${p.total_bases} TB`}</span></div>`).join("");
+    return `<tr><td><button class="backtest-toggle" data-target="${key}">Names</button></td><td>${r.game_date}</td><td>${r.players}</td><td>${r.wins}</td><td>${pct(r.hit_rate)}</td><td>${pct(r.filtered_cumulative_hit_rate)}</td><td>${pct(r.avg_model_probability)}</td></tr>
+    <tr id="${key}" class="detail" hidden><td colspan="7"><div class="pick-list">${picks}</div></td></tr>`;
+  }).join("");
+  document.querySelectorAll(".backtest-toggle").forEach(button=>button.onclick=()=>{
+    const detail=document.querySelector(`#${button.dataset.target}`);
+    detail.hidden=!detail.hidden;
+    button.textContent=detail.hidden?"Names":"Hide";
+  });
 }
 function show(view){
   ["board","games","performance"].forEach(v=>document.querySelector(`#${v}-view`).hidden=v!==view);
@@ -46,8 +71,26 @@ fetch("data/board.json").then(r=>{if(!r.ok)throw Error();return r.json()}).then(
   document.querySelector("#count").textContent=filtered.length;
   document.querySelector("#updated").textContent=new Date(data.updatedAt).toLocaleString();
   document.querySelector("#status").textContent=data.oddsStatus||"";
+  const range=data.backtest?.dateRange;
+  if(range?.min){
+    for(const id of ["backtest-start","backtest-end"]){
+      document.querySelector(`#${id}`).min=range.min;
+      document.querySelector(`#${id}`).max=range.max;
+    }
+    document.querySelector("#backtest-start").value=range.min;
+    document.querySelector("#backtest-end").value=range.max;
+  }
   renderRows();renderGames();renderBacktest();
   document.querySelector("#search").oninput=e=>{const q=e.target.value.toLowerCase();filtered=data.rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q));renderRows();renderGames()};
   document.querySelector("#top-n").onchange=renderBacktest;
+  document.querySelector("#backtest-start").onchange=renderBacktest;
+  document.querySelector("#backtest-end").onchange=renderBacktest;
+  document.querySelector("#reset-dates").onclick=()=>{
+    if(range?.min){
+      document.querySelector("#backtest-start").value=range.min;
+      document.querySelector("#backtest-end").value=range.max;
+    }
+    renderBacktest();
+  };
   document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>show(b.dataset.view));
 }).catch(()=>document.querySelector("#error").hidden=false);

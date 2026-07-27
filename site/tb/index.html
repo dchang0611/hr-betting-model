@@ -35,10 +35,16 @@
     <div id="games-view" hidden></div>
     <div id="performance-view" hidden>
       <div id="cards" class="cards"></div>
-      <div class="toolbar"><h2>Daily results</h2><select id="top-n">
-        <option value="10">Top 10</option><option value="20">Top 20</option>
-        <option value="50" selected>Top 50</option></select></div>
-      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Players</th>
+      <div class="backtest-controls">
+        <div><label for="backtest-start">Start date</label><input id="backtest-start" type="date"></div>
+        <div><label for="backtest-end">End date</label><input id="backtest-end" type="date"></div>
+        <div><label for="top-n">Ranking group</label><select id="top-n">
+          <option value="10">Top 10</option><option value="20">Top 20</option>
+          <option value="50" selected>Top 50</option></select></div>
+        <button id="reset-dates">Use full range</button>
+      </div>
+      <p id="backtest-range" class="status"></p>
+      <div class="table-wrap"><table><thead><tr><th></th><th>Date</th><th>Players</th>
         <th>Wins</th><th>Hit rate</th><th>Cumulative</th><th>Avg projection</th>
       </tr></thead><tbody id="backtest-rows"></tbody></table></div>
     </div>
