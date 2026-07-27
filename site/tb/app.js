@@ -26,29 +26,53 @@ function renderGames(){
   const top40=filtered.filter(r=>Number(r.ranking)<=40);
   const groups={};
   top40.forEach(r=>{
-    const key=`${r.game_pk||r.game_matchup}-${r.batting_team}`;
+    const key=r.game_pk||r.game_matchup;
     (groups[key]??=[]).push(r);
   });
+  const gameTime=value=>{
+    if(!value)return"TBD";
+    const date=new Date(value);
+    if(Number.isNaN(date.getTime()))return"TBD";
+    return new Intl.DateTimeFormat("en-US",{
+      timeZone:"America/Los_Angeles",hour:"numeric",minute:"2-digit",timeZoneName:"short"
+    }).format(date);
+  };
   const cardinal=deg=>{
     if(deg==null)return"unknown direction";
     const points=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
     return points[Math.round((Number(deg)%360)/22.5)%16];
   };
   document.querySelector("#games-view").innerHTML=Object.values(groups)
-    .sort((a,b)=>Math.min(...a.map(r=>r.ranking))-Math.min(...b.map(r=>r.ranking)))
+    .sort((a,b)=>{
+      const aTime=Date.parse(a[0].commence_time||"");
+      const bTime=Date.parse(b[0].commence_time||"");
+      if(Number.isNaN(aTime)&&Number.isNaN(bTime))return Math.min(...a.map(r=>r.ranking))-Math.min(...b.map(r=>r.ranking));
+      if(Number.isNaN(aTime))return 1;
+      if(Number.isNaN(bTime))return-1;
+      return aTime-bTime;
+    })
     .map(rows=>{
       const first=rows[0];
       const roofed=Number(first.is_roofed_no_wind)===1;
       const wind=roofed?"Roofed venue · wind neutralized":`${num(first.wind_speed_mph,0)} mph from ${cardinal(first.wind_direction_deg)}${Number(first.weather_blowing_out)===1?" · blowing out":""}`;
-      const pitcherStats=[
-        first.pitcher_name_hand||"TBD",
-        first.pitcher_k_rate_prior!=null?`K rate ${pct(first.pitcher_k_rate_prior)}`:null,
-        first.pitcher_tb_allowed_per_pa_prior!=null?`TB allowed/PA ${num(first.pitcher_tb_allowed_per_pa_prior)}`:null
-      ].filter(Boolean).join(" · ");
-      return `<article class="game team-game">
-        <div class="team-game-head"><div><p class="eyebrow">TEAM</p><h3>${first.batting_team}</h3><p>${first.game_matchup}</p></div><strong>Best rank #${Math.min(...rows.map(r=>r.ranking))}</strong></div>
-        <div class="conditions"><span><small>Probable pitcher</small>${pitcherStats}</span><span><small>Environment</small>${num(first.temp_f,0)}°F · ${wind}</span></div>
-        <div class="game-list">${rows.map(r=>`<span class="pill">#${r.ranking} ${r.batter_name_hand}: <strong>${pct(r.final_tb_probability)}</strong></span>`).join("")}</div>
+      const teams=Object.values(rows.reduce((acc,row)=>{
+        (acc[row.batting_team]??=[]).push(row);
+        return acc;
+      },{}));
+      const teamPanels=teams.map(teamRows=>{
+        const team=teamRows[0];
+        const pitcherStats=[
+          team.pitcher_name_hand||"TBD",
+          team.pitcher_k_rate_prior!=null?`K ${pct(team.pitcher_k_rate_prior)}`:null,
+          team.pitcher_tb_allowed_per_pa_prior!=null?`TB/PA ${num(team.pitcher_tb_allowed_per_pa_prior)}`:null
+        ].filter(Boolean).join(" · ");
+        return `<section class="game-team"><div class="game-team-head"><h3>${team.batting_team}</h3><small>vs ${pitcherStats}</small></div>
+          <div class="game-list">${teamRows.sort((a,b)=>a.ranking-b.ranking).map(r=>`<span class="pill">#${r.ranking} ${r.batter_name_hand} <strong>${pct(r.final_tb_probability)}</strong></span>`).join("")}</div></section>`;
+      }).join("");
+      return `<article class="game matchup-game">
+        <div class="matchup-head"><div><p class="eyebrow">${gameTime(first.commence_time)}</p><h3>${first.game_matchup}</h3></div>
+          <span class="environment">${num(first.temp_f,0)}°F · ${wind}</span></div>
+        <div class="matchup-teams">${teamPanels}</div>
       </article>`;
     }).join("");
 }
