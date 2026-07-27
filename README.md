@@ -2,6 +2,12 @@
 
 This project runs the home-run model every day on GitHub-hosted compute and publishes the top 30 picks as a mobile-friendly website.
 
+It also runs an independent total-bases model and publishes an **Over 1.5 Total
+Bases** board at the site's `/tb/` path. The TB model reuses the pregame
+matchup, Statcast, weather, park, handedness, and pitch-fit pipeline, while
+training on a separate total-bases target with additional batter and pitcher
+TB-rate features.
+
 ## First-time setup
 
 1. Create a GitHub repository and upload this folder.

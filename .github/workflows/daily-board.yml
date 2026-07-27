@@ -63,6 +63,10 @@ jobs:
         run: python hr_model.py
       - name: Build website data
         run: python build_site.py
+      - name: Run total bases model
+        run: python tb_model.py
+      - name: Build total bases website
+        run: python build_tb_site.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
