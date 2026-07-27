@@ -23,10 +23,34 @@ function renderRows(){
   });
 }
 function renderGames(){
-  const groups={};filtered.forEach(r=>(groups[r.game_matchup||`${r.batting_team} vs ${r.fielding_team}`]??=[]).push(r));
-  document.querySelector("#games-view").innerHTML=Object.entries(groups).map(([g,rows])=>
-    `<article class="game"><h3>${g}</h3><div class="game-list">${rows.slice(0,12).map(r=>
-    `<span class="pill">${r.batter_name_hand}: <strong>${pct(r.final_tb_probability)}</strong></span>`).join("")}</div></article>`).join("");
+  const top40=filtered.filter(r=>Number(r.ranking)<=40);
+  const groups={};
+  top40.forEach(r=>{
+    const key=`${r.game_pk||r.game_matchup}-${r.batting_team}`;
+    (groups[key]??=[]).push(r);
+  });
+  const cardinal=deg=>{
+    if(deg==null)return"unknown direction";
+    const points=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+    return points[Math.round((Number(deg)%360)/22.5)%16];
+  };
+  document.querySelector("#games-view").innerHTML=Object.values(groups)
+    .sort((a,b)=>Math.min(...a.map(r=>r.ranking))-Math.min(...b.map(r=>r.ranking)))
+    .map(rows=>{
+      const first=rows[0];
+      const roofed=Number(first.is_roofed_no_wind)===1;
+      const wind=roofed?"Roofed venue · wind neutralized":`${num(first.wind_speed_mph,0)} mph from ${cardinal(first.wind_direction_deg)}${Number(first.weather_blowing_out)===1?" · blowing out":""}`;
+      const pitcherStats=[
+        first.pitcher_name_hand||"TBD",
+        first.pitcher_k_rate_prior!=null?`K rate ${pct(first.pitcher_k_rate_prior)}`:null,
+        first.pitcher_tb_allowed_per_pa_prior!=null?`TB allowed/PA ${num(first.pitcher_tb_allowed_per_pa_prior)}`:null
+      ].filter(Boolean).join(" · ");
+      return `<article class="game team-game">
+        <div class="team-game-head"><div><p class="eyebrow">TEAM</p><h3>${first.batting_team}</h3><p>${first.game_matchup}</p></div><strong>Best rank #${Math.min(...rows.map(r=>r.ranking))}</strong></div>
+        <div class="conditions"><span><small>Probable pitcher</small>${pitcherStats}</span><span><small>Environment</small>${num(first.temp_f,0)}°F · ${wind}</span></div>
+        <div class="game-list">${rows.map(r=>`<span class="pill">#${r.ranking} ${r.batter_name_hand}: <strong>${pct(r.final_tb_probability)}</strong></span>`).join("")}</div>
+      </article>`;
+    }).join("");
 }
 function renderBacktest(){
   const summaries=payload.backtest?.summary||[];
