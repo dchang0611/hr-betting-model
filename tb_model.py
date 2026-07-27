@@ -296,6 +296,30 @@ def make_board(
     board["raw_tb_probability"] = model.predict_proba(clean_matrix(board, cols))[:, 1]
     board["final_tb_probability"] = calibrator.predict(board["raw_tb_probability"])
     board["target_date"] = base.TARGET_DATE
+    if "batter_hand" in board.columns:
+        board["batter_name_hand"] = board.apply(
+            lambda row: (
+                f"{row['batter_name']} ({base.batter_hand_label(row['batter_hand'])})"
+                if pd.notna(row.get("batter_name")) and str(row.get("batter_name")).strip()
+                else f"Unknown Batter ({base.batter_hand_label(row['batter_hand'])})"
+            ),
+            axis=1,
+        )
+    if "starter_pitcher_hand" in board.columns:
+        board["pitcher_name_hand"] = board.apply(
+            lambda row: (
+                f"{row['pitcher_name']} ({base.pitcher_hand_label(row['starter_pitcher_hand'])})"
+                if pd.notna(row.get("pitcher_name")) and str(row.get("pitcher_name")).strip()
+                else f"Unknown Pitcher ({base.pitcher_hand_label(row['starter_pitcher_hand'])})"
+            ),
+            axis=1,
+        )
+    board["game_matchup"] = board.apply(
+        lambda row: " vs. ".join(
+            sorted([str(row["batting_team"]), str(row["fielding_team"])])
+        ),
+        axis=1,
+    )
     board = board.sort_values("final_tb_probability", ascending=False).reset_index(drop=True)
     board["ranking"] = np.arange(1, len(board) + 1)
     board["tb_signal"] = pd.cut(
