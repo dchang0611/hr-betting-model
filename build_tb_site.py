@@ -88,9 +88,9 @@ def main() -> None:
     boards = sorted(ROOT.glob(f"{PREFIX}_board_????-??-??.csv"))
     if not boards:
         raise FileNotFoundError("No total-bases board CSV was produced.")
-    frame = pd.read_csv(boards[-1]).sort_values("ranking")
+    frame = pd.read_csv(boards[-1]).sort_values("ranking").head(40).copy()
     columns = [
-        "ranking", "target_date", "commence_time", "batter_name_hand", "batting_team",
+        "ranking", "game_pk", "target_date", "commence_time", "batter_name_hand", "batting_team",
         "fielding_team", "game_matchup", "pitcher_name_hand", "final_tb_probability",
         "tb_signal", "batter_tb_per_pa_prior", "batter_hit_rate_prior",
         "batter_xbh_rate_prior", "batter_recent_tb_per_pa_10",
@@ -99,7 +99,8 @@ def main() -> None:
         "pitcher_recent_tb_allowed_per_pa_10", "batter_recent_pa_10",
         "batter_barrel_rate_prior", "batter_hard_hit_rate_prior", "batter_avg_ev_prior",
         "pitcher_k_rate_prior", "platoon_advantage", "pitch_fit_score_prior",
-        "temp_f", "wind_speed_mph", "relative_humidity", "park_factor",
+        "temp_f", "wind_speed_mph", "wind_direction_deg", "relative_humidity",
+        "weather_blowing_out", "is_roofed_no_wind", "park_factor",
         "lineup_confirmed", "lineup_status",
     ]
     records = [
