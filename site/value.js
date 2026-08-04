@@ -23,7 +23,7 @@ function renderValueBoard() {
   const status = valuePayload.oddsStatus || {};
   oddsStatus.textContent = status.message || "Live HR odds were not available.";
   const picks = (valuePayload.rows || [])
-    .filter(row => row.best_hr_odds != null && row.calibrated_hr_probability != null)
+    .filter(row => row.best_hr_odds != null && row.calibrated_hr_probability != null && row.value_label === "Strong value")
     .sort((a, b) => (Number(b.expected_value_pct) || -999) - (Number(a.expected_value_pct) || -999));
   valueRows.innerHTML = picks.map(row => {
     const positive = ["Strong value", "Value", "Watch"].includes(row.value_label);
