@@ -37,6 +37,42 @@ function valueFactorReasons(row) {
     .join("");
 }
 
+function valueQualitativeSummary(row) {
+  const strengths = [];
+  const cautions = [];
+  const grade = (value, strong, favorable, caution) => {
+    const score = Number(value);
+    if (!Number.isFinite(score)) return;
+    if (score >= 80) strengths.push(strong);
+    else if (score >= 65) strengths.push(favorable);
+    else if (score < 30) cautions.push(caution);
+  };
+  grade(row.batter_power, "elite power", "a strong power profile", "limited underlying power");
+  grade(row.recent_form, "excellent recent form", "solid recent form", "cold recent form");
+  grade(row.pitcher_vulnerability, "a highly vulnerable opposing pitcher", "a favorable pitcher matchup", "a pitcher who has limited damage");
+  grade(row.handedness_splits, "an excellent handedness matchup", "a favorable handedness matchup", "an unfavorable handedness split");
+  grade(row.pitch_type_matchup, "an excellent broad pitch-mix fit", "a favorable broad pitch-mix fit", "a weaker broad pitch-mix fit");
+  const environment = Number(row.environment);
+  if (Number.isFinite(environment)) {
+    if (environment >= 70) strengths.push("a very favorable hitting environment");
+    else if (environment >= 60) strengths.push("a favorable hitting environment");
+    else if (environment < 30) cautions.push("a difficult hitting environment");
+  }
+  const lead = strengths.length
+    ? `The baseball case is led by ${valueList(strengths.slice(0, 3))}.`
+    : "The Strong Value signal is driven mainly by the gap between the model probability and the available price, rather than an across-the-board matchup advantage.";
+  const context = cautions.length
+    ? `The main caution is ${valueList(cautions.slice(0, 2))}.`
+    : "No major supporting category grades as a significant weakness.";
+  return `${lead} ${context}`;
+}
+
+function valueList(items) {
+  if (items.length < 2) return items[0] || "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
 function renderValueBoard() {
   const status = valuePayload.oddsStatus || {};
   oddsStatus.textContent = status.message || "Live HR odds were not available.";
@@ -49,6 +85,7 @@ function renderValueBoard() {
     const edgePrefix = Number(row.value_edge_pct_points) > 0 ? "+" : "";
     const evPrefix = Number(row.expected_value_pct) > 0 ? "+" : "";
     const matchupFactors = valueFactorReasons(row);
+    const qualitativeSummary = valueQualitativeSummary(row);
     return `<tr>
       <td><strong>${valueEscape(row.batter_name_hand)}</strong><br><small>${valueEscape(row.game_matchup)} vs ${valueEscape(row.pitcher_name_hand)}</small></td>
       <td class="prob">${valueAmerican(row.best_hr_odds)}</td>
@@ -59,7 +96,7 @@ function renderValueBoard() {
       <td class="${className}">${evPrefix}${valueNumber(row.expected_value_pct)}%</td>
       <td class="${className}">${valueEscape(row.value_label)}</td>
     </tr>
-    <tr class="value-explanation-row"><td colspan="8"><div class="value-explanation"><strong>Why it is strong:</strong> The model gives ${valueEscape(row.batter_name_hand)} a ${valueNumber(row.calibrated_hr_probability)}% HR probability versus ${valueNumber(Number(row.market_implied_probability) * 100)}% implied by the market—an edge of ${edgePrefix}${valueNumber(row.value_edge_pct_points)} points and ${evPrefix}${valueNumber(row.expected_value_pct)}% expected value at ${valueAmerican(row.best_hr_odds)}. Strong Value requires at least a +5-point edge and +20% expected value, so this pick clears both thresholds. <strong>Pitcher:</strong> ${valueEscape(row.pitcher_name_hand)}.${matchupFactors ? `<div class="value-factors"><small>TOP SUPPORTING MODEL FACTORS</small>${matchupFactors}</div>` : ""}</div></td></tr>`;
+    <tr class="value-explanation-row"><td colspan="8"><div class="value-explanation"><strong>Why it is strong:</strong> The model gives ${valueEscape(row.batter_name_hand)} a ${valueNumber(row.calibrated_hr_probability)}% HR probability versus ${valueNumber(Number(row.market_implied_probability) * 100)}% implied by the market—an edge of ${edgePrefix}${valueNumber(row.value_edge_pct_points)} points and ${evPrefix}${valueNumber(row.expected_value_pct)}% expected value at ${valueAmerican(row.best_hr_odds)}. Strong Value requires at least a +5-point edge and +20% expected value, so this pick clears both thresholds. <strong>Pitcher:</strong> ${valueEscape(row.pitcher_name_hand)}.<p class="value-read"><strong>Plain-English read:</strong> ${valueEscape(qualitativeSummary)}</p>${matchupFactors ? `<div class="value-factors"><small>TOP SUPPORTING MODEL FACTORS</small>${matchupFactors}</div>` : ""}</div></td></tr>`;
   }).join("") || '<tr><td colspan="8" class="error">No current VegasInsider odds matched this slate. No value picks were issued.</td></tr>';
 }
 
