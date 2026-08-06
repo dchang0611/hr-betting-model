@@ -1,0 +1,42 @@
+name: Compare pitcher time-scale model
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "experiments/pitcher-timescale/**"
+      - ".github/workflows/timescale-comparison.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      FULL_DATA_END_DATE: "2026-08-05"
+      TRAIN_END_DATE: "2026-06-07"
+      VALID_END_DATE: "2026-07-07"
+      RUN_BACKTEST: "false"
+      RUN_FORWARD_BOARD: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/cache@v4
+        with:
+          path: cache_trained_model
+          key: hr-model-cache-${{ runner.os }}-timescale-${{ github.run_id }}
+          restore-keys: |
+            hr-model-cache-${{ runner.os }}-
+      - run: pip install -r requirements.txt
+      - name: Run baseline and challenger
+        run: python experiments/pitcher-timescale/compare_models.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pitcher-timescale-comparison
+          path: experiments/pitcher-timescale/comparison_output
