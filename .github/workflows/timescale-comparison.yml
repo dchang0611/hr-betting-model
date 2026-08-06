@@ -34,9 +34,9 @@ jobs:
           restore-keys: |
             hr-model-cache-${{ runner.os }}-
       - run: pip install -r requirements.txt
-      - name: Run rolling baseline and challenger comparisons
-        run: python experiments/pitcher-timescale/compare_rolling.py
+      - name: Run pitcher feature redundancy comparison
+        run: python experiments/pitcher-timescale/compare_redundancy.py
       - uses: actions/upload-artifact@v4
         with:
           name: pitcher-timescale-comparison
-          path: experiments/pitcher-timescale/rolling_output
+          path: experiments/pitcher-timescale/redundancy_output
