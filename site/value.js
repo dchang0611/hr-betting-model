@@ -96,7 +96,7 @@ function renderValueBoard() {
       <td class="${className}">${evPrefix}${valueNumber(row.expected_value_pct)}%</td>
       <td class="${className}">${valueEscape(row.value_label)}</td>
     </tr>
-    <tr class="value-explanation-row"><td colspan="8"><div class="value-explanation"><strong>Why it is strong:</strong> The model gives ${valueEscape(row.batter_name_hand)} a ${valueNumber(row.calibrated_hr_probability)}% HR probability versus ${valueNumber(Number(row.market_implied_probability) * 100)}% implied by the market—an edge of ${edgePrefix}${valueNumber(row.value_edge_pct_points)} points and ${evPrefix}${valueNumber(row.expected_value_pct)}% expected value at ${valueAmerican(row.best_hr_odds)}. Strong Value requires at least a +5-point edge and +20% expected value, so this pick clears both thresholds. <strong>Pitcher:</strong> ${valueEscape(row.pitcher_name_hand)}.<p class="value-read"><strong>Plain-English read:</strong> ${valueEscape(qualitativeSummary)}</p>${matchupFactors ? `<div class="value-factors"><small>TOP SUPPORTING MODEL FACTORS</small>${matchupFactors}</div>` : ""}</div></td></tr>`;
+    <tr class="value-explanation-row"><td colspan="8"><div class="value-explanation"><p class="value-read"><strong>Why it is strong:</strong> ${valueEscape(qualitativeSummary)}</p>${matchupFactors ? `<div class="value-factors"><small>TOP SUPPORTING MODEL FACTORS</small>${matchupFactors}</div>` : ""}</div></td></tr>`;
   }).join("") || '<tr><td colspan="8" class="error">No current VegasInsider odds matched this slate. No value picks were issued.</td></tr>';
 }
 
