@@ -1,10 +1,11 @@
 const pct=v=>v==null?"—":`${(Number(v)*100).toFixed(1)}%`;
 const num=(v,d=3)=>v==null?"—":Number(v).toFixed(d);
 let payload, filtered=[];
+function matchupLabel(r){if(!r.batting_team||!r.fielding_team)return r.game_matchup||"Matchup TBD";const home=Number(r.is_home_batter)===1?r.batting_team:r.fielding_team,away=Number(r.is_home_batter)===1?r.fielding_team:r.batting_team;return `${away} @ ${home}`}
 
 function playerRow(r){
   return `<tr><td>${r.ranking}</td><td><strong>${r.batter_name_hand||"Unknown"}</strong><br><small>${r.batting_team||""}</small></td>
-  <td>${r.game_matchup||`${r.batting_team} vs ${r.fielding_team}`}</td><td>${r.pitcher_name_hand||"TBD"}</td>
+  <td>${matchupLabel(r)}</td><td>${r.pitcher_name_hand||"TBD"}</td>
   <td class="prob">${pct(r.final_tb_probability)}</td><td class="signal-${r.tb_signal}">${r.tb_signal||"—"}</td>
   <td>${num(r.batter_recent_tb_per_pa_10)}</td><td><button class="more" data-rank="${r.ranking}">Details</button></td></tr>
   <tr id="detail-${r.ranking}" class="detail" hidden><td colspan="8"><div class="detail-grid">
@@ -58,7 +59,7 @@ function renderGames(){
       const teams=Object.values(rows.reduce((acc,row)=>{
         (acc[row.batting_team]??=[]).push(row);
         return acc;
-      },{}));
+      },{})).sort((a,b)=>Number(a[0].is_home_batter)-Number(b[0].is_home_batter));
       const teamPanels=teams.map(teamRows=>{
         const team=teamRows[0];
         const pitcherStats=[
@@ -70,7 +71,7 @@ function renderGames(){
           <div class="game-list">${teamRows.sort((a,b)=>a.ranking-b.ranking).map(r=>`<span class="pill">#${r.ranking} ${r.batter_name_hand} <strong>${pct(r.final_tb_probability)}</strong></span>`).join("")}</div></section>`;
       }).join("");
       return `<article class="game matchup-game">
-        <div class="matchup-head"><div><p class="eyebrow">${gameTime(first.commence_time)}</p><h3>${first.game_matchup}</h3></div>
+        <div class="matchup-head"><div><p class="eyebrow">${gameTime(first.commence_time)}</p><h3>${matchupLabel(first)}</h3></div>
           <span class="environment">${num(first.temp_f,0)}°F · ${wind}</span></div>
         <div class="matchup-teams">${teamPanels}</div>
       </article>`;

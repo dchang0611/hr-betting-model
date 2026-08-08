@@ -320,9 +320,7 @@ def make_board(
             axis=1,
         )
     board["game_matchup"] = board.apply(
-        lambda row: " vs. ".join(
-            sorted([str(row["batting_team"]), str(row["fielding_team"])])
-        ),
+        base.format_game_matchup,
         axis=1,
     )
     board = board.sort_values("final_tb_probability", ascending=False).reset_index(drop=True)

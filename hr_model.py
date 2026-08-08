@@ -1699,6 +1699,23 @@ def pitcher_hand_label(hand) -> str:
     return hand or "U"
 
 
+def format_game_matchup(row) -> str:
+    """Display every matchup in baseball-standard away @ home order."""
+    batting_team = str(row.get("batting_team", "")).strip()
+    fielding_team = str(row.get("fielding_team", "")).strip()
+    home_team = str(row.get("home_team", "")).strip()
+    if home_team and home_team.lower() not in {"nan", "none"}:
+        away_team = fielding_team if batting_team == home_team else batting_team
+        return f"{away_team} @ {home_team}"
+    try:
+        batter_is_home = int(float(row.get("is_home_batter", 0))) == 1
+    except (TypeError, ValueError):
+        batter_is_home = False
+    away_team = fielding_team if batter_is_home else batting_team
+    home_team = batting_team if batter_is_home else fielding_team
+    return f"{away_team} @ {home_team}"
+
+
 def add_macro_board_columns(board: pd.DataFrame) -> pd.DataFrame:
     if board.empty:
         return board
@@ -1849,7 +1866,7 @@ def add_macro_board_columns(board: pd.DataFrame) -> pd.DataFrame:
         )
 
     out["game_matchup"] = out.apply(
-        lambda x: " vs. ".join(sorted([str(x["batting_team"]), str(x["fielding_team"])])),
+        format_game_matchup,
         axis=1,
     )
     return out
@@ -3510,7 +3527,7 @@ def run_forward_hr_check(board: pd.DataFrame, target_date: str) -> pd.DataFrame:
         graded["calibrated_hr_probability"] = (graded["calibrated_hr_prob"] * 100).round(1)
     if "game_matchup" not in graded.columns:
         graded["game_matchup"] = graded.apply(
-            lambda x: " vs. ".join(sorted([str(x["batting_team"]), str(x["fielding_team"])])),
+            format_game_matchup,
             axis=1,
         )
 

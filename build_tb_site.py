@@ -91,6 +91,7 @@ def main() -> None:
     frame = pd.read_csv(boards[-1]).sort_values("ranking").head(40).copy()
     columns = [
         "ranking", "game_pk", "target_date", "commence_time", "batter_name_hand", "batting_team",
+        "is_home_batter",
         "fielding_team", "game_matchup", "pitcher_name_hand", "final_tb_probability",
         "tb_signal", "batter_tb_per_pa_prior", "batter_hit_rate_prior",
         "batter_xbh_rate_prior", "batter_recent_tb_per_pa_10",

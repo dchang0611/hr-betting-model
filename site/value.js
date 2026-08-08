@@ -19,6 +19,13 @@ function valueNumber(value) {
   return value == null || Number.isNaN(Number(value)) ? "--" : Number(value).toFixed(1);
 }
 
+function valueMatchupLabel(row) {
+  if (!row.batting_team || !row.fielding_team) return row.game_matchup || "Matchup TBD";
+  const home = Number(row.is_home_batter) === 1 ? row.batting_team : row.fielding_team;
+  const away = Number(row.is_home_batter) === 1 ? row.fielding_team : row.batting_team;
+  return `${away} @ ${home}`;
+}
+
 function valueFactorReasons(row) {
   const factors = [
     ["Power", row.batter_power, 70],
@@ -87,7 +94,7 @@ function renderValueBoard() {
     const matchupFactors = valueFactorReasons(row);
     const qualitativeSummary = valueQualitativeSummary(row);
     return `<tr>
-      <td><strong>${valueEscape(row.batter_name_hand)}</strong><br><small>${valueEscape(row.game_matchup)} vs ${valueEscape(row.pitcher_name_hand)}</small></td>
+      <td><strong>${valueEscape(row.batter_name_hand)}</strong><br><small>${valueEscape(valueMatchupLabel(row))} vs ${valueEscape(row.pitcher_name_hand)}</small></td>
       <td class="prob">${valueAmerican(row.best_hr_odds)}</td>
       <td>${valueEscape(row.best_hr_book)}</td>
       <td>${valueNumber(row.calibrated_hr_probability)}%</td>
