@@ -134,6 +134,7 @@ def build_backtest_payload() -> dict:
     outcome_by_name = name_rows.groupby(["game_date", "name_key"])["outcome"].max().to_dict()
 
     board_rows = []
+    shadow_rows = []
     for path in history_paths:
         try:
             archive = json.loads(path.read_text(encoding="utf-8"))
@@ -141,35 +142,36 @@ def build_backtest_payload() -> dict:
             print(f"Could not read historical board {path.name}: {exc}")
             continue
         game_date = str(archive.get("targetDate") or path.stem)
-        for fallback_rank, row in enumerate(archive.get("rows", []), start=1):
-            record = dict(row)
-            record["game_date"] = game_date
-            ranking = pd.to_numeric(record.get("ranking"), errors="coerce")
-            record["ranking"] = int(ranking) if pd.notna(ranking) else fallback_rank
-            probability = pd.to_numeric(
-                record.get("final_hr_probability", record.get("calibrated_hr_probability")), errors="coerce"
-            )
-            record["probability"] = probability / 100 if pd.notna(probability) and probability > 1 else probability
-            batter_id = pd.to_numeric(record.get("batter"), errors="coerce")
-            game_pk = pd.to_numeric(record.get("game_pk"), errors="coerce")
-            display_name = record.get("batter_name_hand", record.get("batter_name", ""))
-            name_key = normalize_player_name(display_name)
-            outcome = None
-            if pd.notna(game_pk) and pd.notna(batter_id):
-                outcome = outcome_by_game_id.get((game_date, int(game_pk), int(batter_id)))
-            if outcome is None and pd.notna(game_pk):
-                outcome = outcome_by_game_name.get((game_date, int(game_pk), name_key))
-            if outcome is None and pd.notna(batter_id):
-                outcome = outcome_by_id.get((game_date, int(batter_id)))
-            if outcome is None:
-                outcome = outcome_by_name.get((game_date, name_key))
-            if outcome is None and game_date in completed_dates:
-                outcome = 0
-            record["outcome"] = outcome
-            record["display_name"] = re.sub(
-                r"\s*\([LRS]\)\s*$", "", str(display_name), flags=re.IGNORECASE
-            )
-            board_rows.append(record)
+        for row_key, destination in [("rows", board_rows), ("shadowRows", shadow_rows)]:
+            for fallback_rank, row in enumerate(archive.get(row_key, []), start=1):
+                record = dict(row)
+                record["game_date"] = game_date
+                ranking = pd.to_numeric(record.get("ranking"), errors="coerce")
+                record["ranking"] = int(ranking) if pd.notna(ranking) else fallback_rank
+                probability = pd.to_numeric(
+                    record.get("final_hr_probability", record.get("calibrated_hr_probability")), errors="coerce"
+                )
+                record["probability"] = probability / 100 if pd.notna(probability) and probability > 1 else probability
+                batter_id = pd.to_numeric(record.get("batter"), errors="coerce")
+                game_pk = pd.to_numeric(record.get("game_pk"), errors="coerce")
+                display_name = record.get("batter_name_hand", record.get("batter_name", ""))
+                name_key = normalize_player_name(display_name)
+                outcome = None
+                if pd.notna(game_pk) and pd.notna(batter_id):
+                    outcome = outcome_by_game_id.get((game_date, int(game_pk), int(batter_id)))
+                if outcome is None and pd.notna(game_pk):
+                    outcome = outcome_by_game_name.get((game_date, int(game_pk), name_key))
+                if outcome is None and pd.notna(batter_id):
+                    outcome = outcome_by_id.get((game_date, int(batter_id)))
+                if outcome is None:
+                    outcome = outcome_by_name.get((game_date, name_key))
+                if outcome is None and game_date in completed_dates:
+                    outcome = 0
+                record["outcome"] = outcome
+                record["display_name"] = re.sub(
+                    r"\s*\([LRS]\)\s*$", "", str(display_name), flags=re.IGNORECASE
+                )
+                destination.append(record)
 
     if not board_rows:
         return live_backtest_fallback()
@@ -261,7 +263,69 @@ def build_backtest_payload() -> dict:
                     "days_above": int(len(upper)),
                 })
 
-    return {"summary": summary_records, "daily": daily_records, "drivers": driver_records}
+    comparison_summary = []
+    comparison_daily = []
+    if shadow_rows:
+        shadow = pd.DataFrame(shadow_rows).sort_values(["game_date", "ranking"])
+        eligible_dates = sorted(set(board["game_date"]) & set(shadow["game_date"]))
+        for top_n in [10, 20, 30, 40]:
+            live_totals = shadow_totals = live_players = shadow_players = overlap_total = 0
+            completed_days = 0
+            for game_date in eligible_dates:
+                live_day = board[board["game_date"].eq(game_date)].head(top_n)
+                shadow_day = shadow[shadow["game_date"].eq(game_date)].head(top_n)
+                live_day = live_day[live_day["outcome"].notna()].copy()
+                shadow_day = shadow_day[shadow_day["outcome"].notna()].copy()
+                if live_day.empty or shadow_day.empty:
+                    continue
+                live_homers = int(pd.to_numeric(live_day["outcome"], errors="coerce").fillna(0).sum())
+                shadow_homers = int(pd.to_numeric(shadow_day["outcome"], errors="coerce").fillna(0).sum())
+                if "batter" in live_day and "batter" in shadow_day:
+                    live_ids = set(pd.to_numeric(live_day["batter"], errors="coerce").dropna().astype(int))
+                    shadow_ids = set(pd.to_numeric(shadow_day["batter"], errors="coerce").dropna().astype(int))
+                else:
+                    live_ids = set(live_day["display_name"].map(normalize_player_name))
+                    shadow_ids = set(shadow_day["display_name"].map(normalize_player_name))
+                overlap = len(live_ids & shadow_ids)
+                completed_days += 1
+                live_players += len(live_day)
+                shadow_players += len(shadow_day)
+                live_totals += live_homers
+                shadow_totals += shadow_homers
+                overlap_total += overlap
+                comparison_daily.append({
+                    "game_date": game_date,
+                    "top_n": top_n,
+                    "live_players": len(live_day),
+                    "shadow_players": len(shadow_day),
+                    "live_homers": live_homers,
+                    "shadow_homers": shadow_homers,
+                    "homer_difference": live_homers - shadow_homers,
+                    "overlap": overlap,
+                    "overlap_rate": clean(overlap / max(1, min(len(live_day), len(shadow_day)))),
+                })
+            if completed_days:
+                comparison_summary.append({
+                    "top_n": top_n,
+                    "days": completed_days,
+                    "live_players": live_players,
+                    "shadow_players": shadow_players,
+                    "live_homers": live_totals,
+                    "shadow_homers": shadow_totals,
+                    "live_hit_rate": clean(live_totals / live_players),
+                    "shadow_hit_rate": clean(shadow_totals / shadow_players),
+                    "homer_difference": live_totals - shadow_totals,
+                    "overlap_rate": clean(overlap_total / max(1, completed_days * top_n)),
+                })
+
+    comparison = {
+        "startDate": min((row["game_date"] for row in comparison_daily), default=None),
+        "completedDays": max((row["days"] for row in comparison_summary), default=0),
+        "minimumDays": 30,
+        "summary": comparison_summary,
+        "daily": comparison_daily,
+    }
+    return {"summary": summary_records, "daily": daily_records, "drivers": driver_records, "comparison": comparison}
 
 
 def latest_board() -> Path:
@@ -270,6 +334,11 @@ def latest_board() -> Path:
     if not boards:
         raise FileNotFoundError("No daily board CSV was produced.")
     return boards[-1]
+
+
+def latest_shadow_board(target_date: str) -> Path | None:
+    path = ROOT / f"{PREFIX}_shadow_board_{target_date}.csv"
+    return path if path.exists() else None
 
 
 def clean(value):
@@ -307,7 +376,7 @@ def main() -> None:
                         f" Odds were attached to the archived {source_date} slate."
                     )
     columns = [
-        "ranking", "game_pk", "commence_time", "batter_name_hand", "batting_team",
+        "ranking", "batter", "game_pk", "commence_time", "batter_name_hand", "batting_team",
         "fielding_team", "is_home_batter", "game_matchup", "pitcher_name_hand",
         "starter_season_era", "starter_season_hr_allowed", "starter_season_ip",
         "final_hr_probability", "calibrated_hr_probability", "bet_quality_score",
@@ -332,12 +401,21 @@ def main() -> None:
         {key: clean(value) for key, value in row.items()}
         for row in frame[[c for c in columns if c in frame.columns]].to_dict("records")
     ]
+    shadow_records = []
+    shadow_path = latest_shadow_board(target_date)
+    if shadow_path:
+        shadow_frame = pd.read_csv(shadow_path).sort_values("ranking")
+        shadow_records = [
+            {key: clean(value) for key, value in row.items()}
+            for row in shadow_frame[[c for c in columns if c in shadow_frame.columns]].to_dict("records")
+        ]
     archive_payload = {
         "targetDate": target_date,
         "updatedAt": datetime.now(timezone.utc).isoformat(),
         "featuredCount": min(40, len(records)),
         "oddsStatus": odds_status,
         "rows": records,
+        "shadowRows": shadow_records,
     }
     (SITE / "data").mkdir(parents=True, exist_ok=True)
     (HISTORY / f"{target_date}.json").write_text(

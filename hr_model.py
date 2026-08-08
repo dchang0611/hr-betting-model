@@ -1641,6 +1641,17 @@ FEATURE_COLUMNS = [
 FULL_FEATURE_COLUMNS = FEATURE_COLUMNS.copy()
 ACTIVE_FEATURE_COLUMNS = FEATURE_COLUMNS.copy()
 
+# The live model uses five-start K/FB/GB form. The shadow model preserves the
+# pre-2026-08-06 ten-start configuration for a forward-only A/B comparison.
+SHADOW_FEATURE_COLUMNS = [
+    {
+        "pitcher_recent_k_rate_5": "pitcher_recent_k_rate_10",
+        "pitcher_recent_fb_rate_allowed_5": "pitcher_recent_fb_rate_allowed_10",
+        "pitcher_recent_gb_rate_allowed_5": "pitcher_recent_gb_rate_allowed_10",
+    }.get(column, column)
+    for column in FULL_FEATURE_COLUMNS
+]
+
 def get_model_feature_columns() -> List[str]:
     return ACTIVE_FEATURE_COLUMNS
 
@@ -3615,6 +3626,26 @@ def main():
 
         board.to_csv(f"{OUTPUT_PREFIX}_board_{TARGET_DATE}.csv", index=False)
         print(f"\nSaved: {OUTPUT_PREFIX}_board_{TARGET_DATE}.csv")
+
+        # Fit and save the former ten-start model as a shadow board. It never
+        # affects the live rankings, probabilities, value picks, or odds tab.
+        live_features = ACTIVE_FEATURE_COLUMNS.copy()
+        ACTIVE_FEATURE_COLUMNS = SHADOW_FEATURE_COLUMNS.copy()
+        print("\n=== FITTING TEN-START SHADOW MODEL (COMPARISON ONLY) ===")
+        shadow_model, shadow_calibrator = fit_calibrated_hgb(train_df, valid_df)
+        shadow_board = board.copy()
+        shadow_board["raw_hr_prob"] = predict_raw(shadow_model, shadow_board)
+        shadow_board["calibrated_hr_prob"] = predict_calibrated(
+            shadow_model, shadow_calibrator, shadow_board
+        )
+        shadow_board["pred_hr_prob"] = shadow_board["raw_hr_prob"]
+        shadow_board = add_macro_board_columns(shadow_board)
+        shadow_board = shadow_board.sort_values(_sort_col(shadow_board), ascending=False).copy()
+        shadow_board["ranking"] = np.arange(1, len(shadow_board) + 1)
+        shadow_path = f"{OUTPUT_PREFIX}_shadow_board_{TARGET_DATE}.csv"
+        shadow_board.to_csv(shadow_path, index=False)
+        print(f"Saved: {shadow_path}")
+        ACTIVE_FEATURE_COLUMNS = live_features
 
         if RUN_HR_CHECK:
             run_forward_hr_check(board, TARGET_DATE)
